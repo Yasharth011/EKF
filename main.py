@@ -4,6 +4,14 @@ import numpy as np
 import plot
 import matplotlib.pyplot as plt
 
+import pyrealsense2 as rs
+
+pipeline = rs.pipeline()
+config = rs.config()
+config.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, 200)
+config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, 200)
+pipeline.start(config)
+
 #covariance matrix
 Q = np.diag([1, #var(x)
              1, #var(y)
@@ -23,9 +31,9 @@ SIM_TIME = 50.0 #simulation time
 
 show_animation = True
 
-def calc_input():
-    v = 1.0
-    a = 0.1
+def calc_input(v, a):
+    # v = 0.0
+    # a = 0.1
     u = np.array([[v],[a]]) #control input
 
     return u
@@ -100,10 +108,18 @@ def main():
     hz = np.zeros((3,1)) 
 
     while SIM_TIME>=time:
+
+        frames = pipeline.wait_for_frames()
+
+        raw_accel = frames[0].as_motion_frame().get_motion_data()
+        raw_gyro = frames[1].as_motion_frame().get_motion_data()
+
+        accel = np.asarray([raw_accel.x, raw_accel.y, raw_accel.z])
+        gyro = np.asarray([raw_gyro.x, raw_gyro.y, raw_gyro.z])
+        u = calc_input(accel[0]*dt, gyro[0])
         
         time+= dt
 
-        u = calc_input()
 
         xTrue, XDR, ud = observation(xTrue, xDR, u)
 
