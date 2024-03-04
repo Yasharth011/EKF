@@ -27,26 +27,16 @@ H = np.diag([1,1,1])**2
 
 dt = 0.1 # time-step
 
-SIM_TIME = 50.0 #simulation time
-
 show_animation = True
 
-def calc_input(v, a):
-    # v = 0.0
-    # a = 0.1
-    u = np.array([[v],[a]]) #control input
 
-    return u
-
-def observation(xTrue, xd, u):
+def observation(xTrue, u):
     xTrue = state_model(xTrue, u)
 
     #adding noise to input
     ud = u + input_noise @ np.random.randn(2,1)
 
-    xd = state_model(xd, ud)
-
-    return xTrue, xd, ud
+    return xTrue, ud
 
 def state_model(x, u):
 
@@ -89,7 +79,6 @@ def ekf_estimation(xEst, PEst, z, u):
 
     return xEst, PEst
 
-
 def main():
 
     time = 0.0
@@ -99,15 +88,11 @@ def main():
     xTrue = np.zeros((3,1))
     PEst = np.array([[0.1,0,0],[0,0.1,0],[0,0,0.1]])
     
-    xDR = np.zeros((3,1)) #dead reckoning
-
     #history
     hxEst = xEst
     hxTrue = xTrue 
-    hxDR = xTrue 
-    hz = np.zeros((3,1)) 
 
-    while SIM_TIME>=time:
+    while True:
 
         frames = pipeline.wait_for_frames()
 
@@ -116,12 +101,15 @@ def main():
 
         accel = np.asarray([raw_accel.x, raw_accel.y, raw_accel.z])
         gyro = np.asarray([raw_gyro.x, raw_gyro.y, raw_gyro.z])
-        u = calc_input(accel[0]*dt, gyro[0])
+        
+        #calculating net acceleration
+        accel_net = math.sqrt((pow(accel[0],2) + pow(accel[2],2)))
+
+        u = np.array([[accel_net*dt], [gyro[0]]]) #control input
         
         time+= dt
 
-
-        xTrue, XDR, ud = observation(xTrue, xDR, u)
+        xTrue, ud = observation(xTrue, u)
 
         z = observation_model(xTrue)
 
@@ -130,27 +118,23 @@ def main():
         #store data histroy 
         hxEst = np.hstack((hxEst, xEst))
         hxTrue = np.hstack((hxTrue, xTrue))
-        hxDR = np.hstack((hxDR, xDR))
-        hz = np.hstack((hz,z))
+
         if show_animation:
             plt.cla()
+
             # for stopping simulation with the esc key.
             plt.gcf().canvas.mpl_connect('key_release_event',
                     lambda event: [exit(0) if event.key == 'escape' else None])
-            plt.plot(hz[0, :], hz[1, :], ".g")
-            plt.plot(hxTrue[0, :].flatten(),
-                     hxTrue[1, :].flatten(), "-b")
-            plt.plot(hxDR[0, :].flatten(),
-                     hxDR[1, :].flatten(), "-k")
-            plt.plot(hxEst[0, :].flatten(),
-                     hxEst[1, :].flatten(), "-r")
+            
+            #plotting actual state (represented by blue line)
+            plt.plot(hxTrue[0, :].flatten(), hxTrue[1, :].flatten(), "-b")
+            
+            #plotting estimated state (represented by red line)
+            plt.plot(hxEst[0, :].flatten(), hxEst[1, :].flatten(), "-r")
 
-            """
-            plt.text(0.45, 0.85, f"True Velocity Scale Factor: {true_scale_factor:.2f}", ha='left', va='top', transform=plt.gca().transAxes)
-           plt.text(0.45, 0.95, f"Estimated Velocity Scale Factor: {estimated_scale_factor:.2f}", ha='left', va='top', transform=plt.gca().transAxes)
-            """
 
             plot.plot_covariance_ellipse(xEst[0, 0], xEst[1, 0], PEst)
+
             plt.axis("equal")
             plt.grid(True)
             plt.pause(0.001)
