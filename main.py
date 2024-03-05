@@ -91,6 +91,7 @@ def main():
     #history
     hxEst = xEst
     hxTrue = xTrue 
+    haccel = np.zeros((3,1))
 
     while True:
 
@@ -99,11 +100,22 @@ def main():
         raw_accel = frames[0].as_motion_frame().get_motion_data()
         raw_gyro = frames[1].as_motion_frame().get_motion_data()
 
+        if(raw_accel.x<0.001):
+            raw_accel.x = 0
+        
+        elif(raw_accel.y<0.001):
+            raw_accel.y = 0
+
+        elif(raw_accel.z<0.001):
+            raw_accel.z = 0
+
         accel = np.asarray([raw_accel.x, raw_accel.y, raw_accel.z])
         gyro = np.asarray([raw_gyro.x, raw_gyro.y, raw_gyro.z])
         
+        #re-shaping acceleration array
+        a = accel.reshape((3,1))
         #calculating net acceleration
-        accel_net = math.sqrt((pow(accel[0],2) + pow(accel[2],2)))
+        accel_net = math.sqrt((pow(accel[1],2) + pow(accel[2],2)))
 
         u = np.array([[accel_net*dt], [gyro[0]]]) #control input
         
@@ -118,7 +130,8 @@ def main():
         #store data histroy 
         hxEst = np.hstack((hxEst, xEst))
         hxTrue = np.hstack((hxTrue, xTrue))
-
+        haccel = np.hstack((haccel, a))
+        
         if show_animation:
             plt.cla()
 
@@ -127,11 +140,13 @@ def main():
                     lambda event: [exit(0) if event.key == 'escape' else None])
             
             #plotting actual state (represented by blue line)
-            plt.plot(hxTrue[0, :].flatten(), hxTrue[1, :].flatten(), "-b")
+            plt.plot(hxTrue[0, :], hxTrue[1, :], "-b")
             
             #plotting estimated state (represented by red line)
-            plt.plot(hxEst[0, :].flatten(), hxEst[1, :].flatten(), "-r")
-
+            plt.plot(hxEst[0, :], hxEst[1, :], "-r")
+            
+            #plotting accelration(represented by green line)
+            plt.plot(haccel[0, :], haccel[1, :], color = "green")
 
             plot.plot_covariance_ellipse(xEst[0, 0], xEst[1, 0], PEst)
 
