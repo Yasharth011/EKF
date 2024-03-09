@@ -12,10 +12,18 @@ config.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, 200)
 config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, 200)
 pipeline.start(config)
 
+"""
+#variables for low pass filter
+cutoff  = 
+sig = np.sin(fs*2*np.pi*t)
+fs = 
+order =
+"""
+
 #covariance matrix
 Q = np.diag([1, #var(x)
              1, #var(y)
-             np.deg2rad(1.0), #var(yaw)
+             1, #var(yaw)
              ])**2
 R = np.diag([1,1,1])**2
 
@@ -23,7 +31,7 @@ R = np.diag([1,1,1])**2
 input_noise = np.diag([1.0,np.deg2rad(5)])**2
 
 #measurement matrix
-H = np.diag([1,1,1])**2
+H = np.diag([0.001,0.001,0.001])**2
 
 dt = 0.1 # time-step
 
@@ -100,15 +108,6 @@ def main():
         raw_accel = frames[0].as_motion_frame().get_motion_data()
         raw_gyro = frames[1].as_motion_frame().get_motion_data()
 
-        if(raw_accel.x<0.001):
-            raw_accel.x = 0
-        
-        elif(raw_accel.y<0.001):
-            raw_accel.y = 0
-
-        elif(raw_accel.z<0.001):
-            raw_accel.z = 0
-
         accel = np.asarray([raw_accel.x, raw_accel.y, raw_accel.z])
         gyro = np.asarray([raw_gyro.x, raw_gyro.y, raw_gyro.z])
         
@@ -117,7 +116,7 @@ def main():
         #calculating net acceleration
         accel_net = math.sqrt((pow(accel[1],2) + pow(accel[2],2)))
 
-        u = np.array([[accel_net*dt], [gyro[0]]]) #control input
+        u = np.array([[accel_net*dt], [gyro[1]]]) #control input
         
         time+= dt
 
