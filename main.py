@@ -14,10 +14,10 @@ pipeline.start(config)
 
 """
 #variables for low pass filter
-cutoff  = 
-sig = np.sin(fs*2*np.pi*t)
-fs = 
-order =
+cutoff  = 250
+sig = np.sin(fs*2*np.pi*dt)
+fs = 156.25
+order = 2
 """
 
 #covariance matrix
@@ -31,7 +31,7 @@ R = np.diag([1,1,1])**2
 input_noise = np.diag([1.0,np.deg2rad(5)])**2
 
 #measurement matrix
-H = np.diag([0.001,0.001,0.001])**2
+H = np.diag([1,1,1])**2
 
 dt = 0.1 # time-step
 
@@ -131,27 +131,35 @@ def main():
         hxTrue = np.hstack((hxTrue, xTrue))
         haccel = np.hstack((haccel, a))
         
+        print(haccel)
+        
         if show_animation:
-            plt.cla()
+            ax = plt.cla()
+
+            ax = plt.axes(projection='3d')
+
+            ax.grid()
+            
 
             # for stopping simulation with the esc key.
             plt.gcf().canvas.mpl_connect('key_release_event',
                     lambda event: [exit(0) if event.key == 'escape' else None])
             
             #plotting actual state (represented by blue line)
-            plt.plot(hxTrue[0, :], hxTrue[1, :], "-b")
+            ax.plot3D(hxTrue[0, :], hxTrue[1, :], hxTrue[2,:], "-b")
             
             #plotting estimated state (represented by red line)
-            plt.plot(hxEst[0, :], hxEst[1, :], "-r")
+            ax.plot3D(hxEst[0, :], hxEst[1, :], hxTrue[2,:], "-r")
             
             #plotting accelration(represented by green line)
-            plt.plot(haccel[0, :], haccel[1, :], color = "green")
+            #ax.plot3D(haccel[0, :], haccel[1, :], color = "green")
 
-            plot.plot_covariance_ellipse(xEst[0, 0], xEst[1, 0], PEst)
-
-            plt.axis("equal")
-            plt.grid(True)
+            #plot.plot_covariance_ellipse(xEst[0, 0], xEst[1, 0], PEst)
+            
+            plt.show()
             plt.pause(0.001)
+
+     
             
 if __name__ == '__main__':
     main()
