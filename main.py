@@ -108,13 +108,19 @@ def main():
         raw_accel = frames[0].as_motion_frame().get_motion_data()
         raw_gyro = frames[1].as_motion_frame().get_motion_data()
 
+        rs_to_base_tfm = np.asarray([[0,0,1],[1,0,0],[0,1,0]])
         accel = np.asarray([raw_accel.x, raw_accel.y, raw_accel.z])
+        accel = np.transpose(np.matmul(rs_to_base_tfm, np.transpose(accel)))
         gyro = np.asarray([raw_gyro.x, raw_gyro.y, raw_gyro.z])
+        gyro = np.transpose(np.matmul(rs_to_base_tfm, np.transpose(gyro)))
+
+        print(accel)
+        #gyro = np.asarray([0,0,0])
         
         #re-shaping acceleration array
         a = accel.reshape((3,1))
         #calculating net acceleration
-        accel_net = math.sqrt((pow(accel[1],2) + pow(accel[2],2)))
+        accel_net = math.sqrt((pow(accel[0],2) + pow(accel[1],2)))
 
         u = np.array([[accel_net*dt], [gyro[1]]]) #control input
         
