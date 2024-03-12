@@ -10,6 +10,7 @@ pipeline = rs.pipeline()
 config = rs.config()
 config.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, 200)
 config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, 200)
+
 pipeline.start(config)
 
 """
@@ -24,14 +25,15 @@ order = 2
 Q = np.diag([1, #var(x)
              1, #var(y)
              1, #var(yaw)
-             ])**2
-R = np.diag([1,1,1])**2
+             1])**2
+R = np.diag([1,1])**2
 
 #noise parameter
 input_noise = np.diag([1.0,np.deg2rad(5)])**2
 
 #measurement matrix
-H = np.diag([1,1,1])**2
+H = np.array([[1,0,0,0],
+              [0,1,0,0]])
 
 dt = 0.1 # time-step
 
@@ -48,15 +50,44 @@ def observation(xTrue, u):
 
 def state_model(x, u):
 
-   A = np.diag([1,1,1])**2
+   A = np.array([[1,0,0,0],
+                 [0,1,0,0],
+                 [0,0,1,0],
+                 [0,0,0,0]])
 
    B = np.array([[dt * math.cos(x[2,0]), 0],
                  [dt * math.sin(x[2,0]), 0],
-                 [0, dt]])
+                 [0, dt],
+                 [1,0]])
     
    x = A @ x + B @ u
 
    return x
+
+def jacob_f(x, u):
+    """
+    Jacobian of Motion Model
+
+    motion model
+    x_{t+1} = x_t+v*dt*cos(yaw)
+    y_{t+1} = y_t+v*dt*sin(yaw)
+    yaw_{t+1} = yaw_t+omega*dt
+    v_{t+1} = v{t}
+    so
+    dx/dyaw = -v*dt*sin(yaw)
+    dx/dv = dt*cos(yaw)
+    dy/dyaw = v*dt*cos(yaw)
+    dy/dv = dt*sin(yaw)
+    """
+    yaw = x[2, 0]
+    v = u[0, 0]
+    jF = np.array([
+        [1.0, 0.0, -dt * v * math.sin(yaw), dt * math.cos(yaw)],
+        [0.0, 1.0, dt * v * math.cos(yaw), dt * math.sin(yaw)],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0]])
+
+    return jF
 
 def observation_model(x):
 
@@ -69,8 +100,8 @@ def ekf_estimation(xEst, PEst, z, u):
     #Predict 
     xPred = state_model(xEst, u)
     #state covariance
-    F = np.diag([1,1,1])**2
-    PPred = F*PEst*F.T + Q
+    jF = jacob_f(xEst, u)
+    PPred = jF*PEst*jF.T + Q
 
     #Update
     zPred = observation_model(xPred)
@@ -83,7 +114,7 @@ def ekf_estimation(xEst, PEst, z, u):
 
     xEst = xPred + K @ y #updating state
 
-    PEst = ((np.eye(3)) - K@H) @ PPred
+    PEst = ((np.eye(len(xEst))) - K@H) @ PPred
 
     return xEst, PEst
 
@@ -92,14 +123,14 @@ def main():
     time = 0.0
 
     #state vector 
-    xEst = np.zeros((3,1))
-    xTrue = np.zeros((3,1))
-    PEst = np.array([[0.1,0,0],[0,0.1,0],[0,0,0.1]])
+    xEst = np.zeros((4,1))
+    xTrue = np.zeros((4,1))
+    PEst = np.eye(4)
     
     #history
     hxEst = xEst
     hxTrue = xTrue 
-    haccel = np.zeros((3,1))
+    #haccel = np.zeros((3,1))
 
     while True:
 
@@ -118,11 +149,11 @@ def main():
         #gyro = np.asarray([0,0,0])
         
         #re-shaping acceleration array
-        a = accel.reshape((3,1))
+        #a = accel.reshape((3,1))
         #calculating net acceleration
         accel_net = math.sqrt((pow(accel[0],2) + pow(accel[1],2)))
 
-        u = np.array([[accel_net*dt], [gyro[1]]]) #control input
+        u = np.array([[accel_net*dt], [gyro[2]]]) #control input
         
         time+= dt
 
@@ -135,35 +166,23 @@ def main():
         #store data histroy 
         hxEst = np.hstack((hxEst, xEst))
         hxTrue = np.hstack((hxTrue, xTrue))
-        haccel = np.hstack((haccel, a))
+        #haccel = np.hstack((haccel, a))
         
-        print(haccel)
         
         if show_animation:
-            ax = plt.cla()
-
-            ax = plt.axes(projection='3d')
-
-            ax.grid()
-            
-
+            plt.cla()
             # for stopping simulation with the esc key.
             plt.gcf().canvas.mpl_connect('key_release_event',
                     lambda event: [exit(0) if event.key == 'escape' else None])
-            
-            #plotting actual state (represented by blue line)
-            ax.plot3D(hxTrue[0, :], hxTrue[1, :], hxTrue[2,:], "-b")
-            
-            #plotting estimated state (represented by red line)
-            ax.plot3D(hxEst[0, :], hxEst[1, :], hxTrue[2,:], "-r")
-            
-            #plotting accelration(represented by green line)
-            #ax.plot3D(haccel[0, :], haccel[1, :], color = "green")
-
-            #plot.plot_covariance_ellipse(xEst[0, 0], xEst[1, 0], PEst)
-            
-            plt.show()
+            plt.plot(hxTrue[0, :].flatten(),
+                     hxTrue[1, :].flatten(), "-b")
+            plt.plot(hxEst[0, :].flatten(),
+                     hxEst[1, :].flatten(), "-r")
+            #plot_covariance_ellipse(xEst[0, 0], xEst[1, 0], PEst)
+            plt.axis("equal")
+            plt.grid(True)
             plt.pause(0.001)
+
 
      
             
