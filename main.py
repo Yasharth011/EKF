@@ -3,7 +3,7 @@ import math
 import numpy as np
 import plot
 import matplotlib.pyplot as plt
-
+import plot
 import pyrealsense2 as rs
 
 pipeline = rs.pipeline()
@@ -24,12 +24,14 @@ order = 2
 #covariance matrix
 Q = np.diag([1, #var(x)
              1, #var(y)
-             1, #var(yaw)
-             1])**2
+             np.deg2rad(1), #var(yaw)
+             1  #var(velocity)
+             ])**2
+
 R = np.diag([1,1])**2
 
 #noise parameter
-input_noise = np.diag([1.0,np.deg2rad(5)])**2
+input_noise = np.diag([1.0,np.deg2rad(30)])**2
 
 #measurement matrix
 H = np.array([[1,0,0,0],
@@ -65,20 +67,7 @@ def state_model(x, u):
    return x
 
 def jacob_f(x, u):
-    """
-    Jacobian of Motion Model
 
-    motion model
-    x_{t+1} = x_t+v*dt*cos(yaw)
-    y_{t+1} = y_t+v*dt*sin(yaw)
-    yaw_{t+1} = yaw_t+omega*dt
-    v_{t+1} = v{t}
-    so
-    dx/dyaw = -v*dt*sin(yaw)
-    dx/dv = dt*cos(yaw)
-    dy/dyaw = v*dt*cos(yaw)
-    dy/dv = dt*sin(yaw)
-    """
     yaw = x[2, 0]
     v = u[0, 0]
     jF = np.array([
@@ -130,7 +119,6 @@ def main():
     #history
     hxEst = xEst
     hxTrue = xTrue 
-    #haccel = np.zeros((3,1))
 
     while True:
 
@@ -139,17 +127,14 @@ def main():
         raw_accel = frames[0].as_motion_frame().get_motion_data()
         raw_gyro = frames[1].as_motion_frame().get_motion_data()
 
-        rs_to_base_tfm = np.asarray([[0,0,1],[1,0,0],[0,1,0]])
+        rs_to_base_tfm = np.asarray([[0,0,1],[1,0,0],[0,1,0]])#transfromation matrix
+
         accel = np.asarray([raw_accel.x, raw_accel.y, raw_accel.z])
         accel = np.transpose(np.matmul(rs_to_base_tfm, np.transpose(accel)))
+
         gyro = np.asarray([raw_gyro.x, raw_gyro.y, raw_gyro.z])
         gyro = np.transpose(np.matmul(rs_to_base_tfm, np.transpose(gyro)))
 
-        print(accel)
-        #gyro = np.asarray([0,0,0])
-        
-        #re-shaping acceleration array
-        #a = accel.reshape((3,1))
         #calculating net acceleration
         accel_net = math.sqrt((pow(accel[0],2) + pow(accel[1],2)))
 
@@ -166,19 +151,22 @@ def main():
         #store data histroy 
         hxEst = np.hstack((hxEst, xEst))
         hxTrue = np.hstack((hxTrue, xTrue))
-        #haccel = np.hstack((haccel, a))
-        
         
         if show_animation:
             plt.cla()
+            
             # for stopping simulation with the esc key.
             plt.gcf().canvas.mpl_connect('key_release_event',
                     lambda event: [exit(0) if event.key == 'escape' else None])
-            plt.plot(hxTrue[0, :].flatten(),
-                     hxTrue[1, :].flatten(), "-b")
-            plt.plot(hxEst[0, :].flatten(),
-                     hxEst[1, :].flatten(), "-r")
-            #plot_covariance_ellipse(xEst[0, 0], xEst[1, 0], PEst)
+            
+            #plotting actual state (represented by blue line)
+            plt.plot(hxTrue[0, :], hxTrue[1, :], "-b")
+            
+            #plotting estimated state (represented by red line)
+            plt.plot(hxEst[0, :], hxEst[1, :], "-r")
+            
+            plot.plot_covariance_ellipse(xEst[0, 0], xEst[1, 0], PEst)
+            
             plt.axis("equal")
             plt.grid(True)
             plt.pause(0.001)
