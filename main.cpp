@@ -1,9 +1,8 @@
-#include<iostream>
 #include<csyslib>
 #include<cmath>
 #include<matplotlibcpp.h>
-#include<Eigen/Dense>
-#include<EigenRand/EigenRand>
+#include<Eigen>
+#include<winuser.h>
 #include<libealsense2/rs.hpp>
 #include<stack>
 #include<tuple>
@@ -17,15 +16,18 @@ class EKF
 {
 	//pipeline for realsense
 	rs::pipeline p;
+	rs::config c;
+	c.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, 200);
+	c.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, 200);
 
-	p.start();
+	p.start(c);
 
 
 	//covariance matrix
 	MatrixXd Q(3,3);
 	Q<< .1, 0, 0,
-    	0, .1, 0,
-    	0, 0, .1;
+    	     0, .1, 0,
+    	     0, 0, .1;
 
 	MatrixXd R(2,2);
 	R<< 1,0,
@@ -41,7 +43,9 @@ class EKF
 	H<< 1,0,0,0,
 	    0,1,0,0;
 
-	dt = 0.1 //time-step
+	float dt = 0.1 //time-step
+	
+	bool show_animation = true;
 	
 	tuple<MatrixXd, MatrixXd> MatrixXf observation(MatrixXd xTrue(4,1), MatrixXd u(2,1))
 	{
@@ -126,7 +130,91 @@ class EKF
 		return make_tuple(xEst, Pest);
 	}
 
-			
+int main()
+{
+	float time = 0.0;	
+
+	//state vector 
+	MatrixXd::Zero xEst(4,1);
+	MatrixXd::Zero xTrue(4,1);
+	MatirxXd::Identity PESt(4,1);
+
+	//history 
+	stack<MatrixXd> hxEst;
+	stack<MtrixXd> hxTrue;
+
+	hxEst = stack.push(xEst);
+	hxTrue = stack.push(xTrue);
+
+	while True:
+	{
+		//IMU data from realsense
+		frames = p.wait_for_frames()
+
+		raw_accel = frames[0].as_motion_frames().get_motion_data();
+		raw_gyro = frames[1].as_motion_frames().get_motion_data();
+
+		MatrixXd rs_to_base_tfm(3,3);
+		rs_to_base_tfm<< 0, 0, 1,
+				 1, 0, 0,
+			 	 0, 0, 1;
+       
+		MatrixXd accel(1,3);
+		accel<< raw_accel.x,raw_accel.y, raw_accel.z;
+		accel = accel * rs_to_base_tfm;
+		accel = accel.transpose();
+
+		MatrixXd gyro(1,3);
+		gyro<< raw_gyro.x, raw_gyro.y, raw_gyro.z;
+		gyro = gyro * rs_to_base_tfm;
+		gyro = gyro.transpose();
+
+		//calculating net acceleration
+		accel_net = sqrt((pow(accel(0), 2) + pow(accel(1), 2)));
+
+		MatrixXd u(2,1);
+		u<< accel_net*dt, gyro(2); //control input
+				
+		time+ = dt;
+
+		tie(xTrue, ud) = observation(xTrue, u);
+
+		z = observation_model(xTrue);
+
+		tie(xEst, PEst) = ekf_estimation(xEst, PEst,x ,ud);
+
+		//store datat history
+		hxEst = stack.push(xEst);
+		hxTrue = stack.push(xTrue);
+
+		if show_animation
+		{
+			plt.cla();
+
+			//for stopping simulation with the esc key
+			plt.gcf().canvas.mpl_connect("key release event", 
+				[]{if(GetKeyState((int)"q"==1)) exit(0); 
+				   else continue;});	
+
+			//plotting actual state(represented by blue)
+			plt.plot(hxTrue.coeff(0, seq(0, hxTrue.cols()), 
+				 hxTrue.coeff(1, seq(1, hxTrue.cols()), "bo-");
+
+
+			//plotting actual state(represented y red)
+			plt.plot(hxEst.coeff(0, seq(0, hxEst.cols()), 
+				 hxEst.coeff(1, seq(1, hxEst.cols()), "r-");
+
+			plt.axis("equal");
+
+			plt.grid(true);
+
+			plt.pause(0.001);
+		}
+	}
+}
+
+
 
 
 	     	
