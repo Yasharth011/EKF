@@ -3,7 +3,6 @@ import math
 import numpy as np
 import plot
 import matplotlib.pyplot as plt
-import plot
 import pyrealsense2 as rs
 
 pipeline = rs.pipeline()
@@ -13,20 +12,11 @@ config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, 200)
 
 pipeline.start(config)
 
-"""
-#variables for low pass filter
-cutoff  = 250
-sig = np.sin(fs*2*np.pi*dt)
-fs = 156.25
-order = 2
-"""
-
-#covariance matrix
-Q = np.diag([1, #var(x)
-             1, #var(y)
-             np.deg2rad(1), #var(yaw)
-             1  #var(velocity)
-             ])**2
+Q = np.diag([.1, #var(x)
+              .1, #var(y)
+              np.deg2rad(1), #var(yaw)
+              1  #var(velocity)
+              ])**2
 
 R = np.diag([1,1])**2
 
