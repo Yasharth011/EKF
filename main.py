@@ -5,7 +5,8 @@ import plot
 import matplotlib.pyplot as plt
 from gz.msgs10.vector3d_pb2 import Vector3d
 from gz.transport13 import Node
-from gz.msgs10.imu_pb2 import IMU
+from gz.msgs10.imu_pb2 import IMU 
+
 Q = np.diag([.1, #var(x)
               .1, #var(y)
               np.deg2rad(1), #var(yaw)
@@ -38,13 +39,16 @@ def vector3_cb(msg):
 
     msg2 = msg.angular_velocity
     global gyro
-    gyro =  msg2.y
+    gyro =  msg2.z
     
     global accel_net
     accel_net = math.sqrt((accel[0]**2)+(accel[1]**2)+(accel[2]**2))
 	
     global u
     u = np.array([[accel_net*dt], [gyro]])
+
+    print("acceleration : ",accel)
+    print("angular v : ",gyro)
     
 def observation(xTrue, u):
     xTrue = state_model(xTrue, u)
@@ -146,7 +150,7 @@ def main():
         #store data histroy 
         hxEst = np.hstack((hxEst, xEst))
         hxTrue = np.hstack((hxTrue, xTrue))
-        print(u) 
+
         if show_animation:
             plt.cla()
             
